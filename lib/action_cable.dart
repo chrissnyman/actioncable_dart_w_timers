@@ -16,14 +16,16 @@ class ActionCable {
   IOWebSocketChannel? _socketChannel;
   StreamSubscription? _listener;
 
+  late int _pingInterval;
+  late int _healthTimeout;
+  late int _healthCheckInterval;
+
   final OnConnectedFunction? onConnected;
   final OnConnectionLostFunction? onConnectionLost;
   final OnCannotConnectFunction? onCannotConnect;
 
-  final Map<String, OnChannelSubscribedFunction?>
-      _onChannelSubscribedCallbacks = {};
-  final Map<String, OnChannelDisconnectedFunction?>
-      _onChannelDisconnectedCallbacks = {};
+  final Map<String, OnChannelSubscribedFunction?> _onChannelSubscribedCallbacks = {};
+  final Map<String, OnChannelDisconnectedFunction?> _onChannelDisconnectedCallbacks = {};
   final Map<String, OnChannelMessageFunction?> _onChannelMessageCallbacks = {};
 
   ActionCable.connect(
@@ -32,7 +34,13 @@ class ActionCable {
     this.onConnected,
     this.onConnectionLost,
     this.onCannotConnect,
+    int? pingInterval,
+    int? healthTimeout,
+    int? healthCheckInterval,
   }) {
+    _pingInterval = pingInterval ?? 2;
+    _healthTimeout = healthTimeout ?? 10;
+    _healthCheckInterval = healthCheckInterval = 2;
     _connect(url, headers);
   }
 
@@ -40,7 +48,7 @@ class ActionCable {
     _socketChannel = IOWebSocketChannel.connect(
       url,
       headers: headers,
-      pingInterval: const Duration(seconds: 3),
+      pingInterval: Duration(seconds: _pingInterval),
     );
 
     _listener = _socketChannel?.stream.listen(
@@ -53,7 +61,7 @@ class ActionCable {
       },
     );
 
-    _timer = Timer.periodic(const Duration(seconds: 3), _healthCheck);
+    _timer = Timer.periodic(Duration(seconds: _healthCheckInterval), _healthCheck);
   }
 
   void disconnect() {
@@ -61,9 +69,7 @@ class ActionCable {
     _listener?.cancel();
     _socketChannel?.sink.close();
     _socketChannel = null;
-    _onChannelDisconnectedCallbacks.values
-        .where((onDisconnected) => onDisconnected != null)
-        .forEach((onDisconnected) {
+    _onChannelDisconnectedCallbacks.values.where((onDisconnected) => onDisconnected != null).forEach((onDisconnected) {
       onDisconnected!();
     });
   }
@@ -80,7 +86,7 @@ class ActionCable {
 
   void _healthCheck(Timer timer) {
     if (_lastPing == null) return;
-    if (DateTime.now().difference(_lastPing!) > const Duration(seconds: 6)) {
+    if (DateTime.now().difference(_lastPing!) > Duration(seconds: _healthTimeout)) {
       disconnect();
       onConnectionLost?.call();
     }
@@ -152,8 +158,7 @@ class ActionCable {
   void _handleProtocolMessage(Map<String, dynamic> payload) {
     switch (payload['type']) {
       case 'ping':
-        _lastPing =
-            DateTime.fromMillisecondsSinceEpoch(payload['message'] * 1000);
+        _lastPing = DateTime.fromMillisecondsSinceEpoch(payload['message'] * 1000);
         break;
       case 'welcome':
         onConnected?.call();
