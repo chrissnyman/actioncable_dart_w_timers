@@ -38,9 +38,9 @@ class ActionCable {
     int? healthTimeout,
     int? healthCheckInterval,
   }) {
-    _pingInterval = pingInterval ?? 2;
+    _pingInterval = pingInterval ?? 3;
     _healthTimeout = healthTimeout ?? 10;
-    _healthCheckInterval = healthCheckInterval = 2;
+    _healthCheckInterval = healthCheckInterval = 3;
     _connect(url, headers);
   }
 
@@ -158,7 +158,7 @@ class ActionCable {
   void _handleProtocolMessage(Map<String, dynamic> payload) {
     switch (payload['type']) {
       case 'ping':
-        _lastPing = DateTime.fromMillisecondsSinceEpoch(payload['message'] * 1000);
+        _lastPing = DateTime.now();
         break;
       case 'welcome':
         onConnected?.call();
